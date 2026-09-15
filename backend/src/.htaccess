@@ -1,0 +1,14 @@
+# Bloquea CUALQUIER acceso web directo a esta carpeta.
+# data.fdb, fbembed/, python_libs/ y db_bridge.py solo deben ser usados
+# por PHP en el servidor (shell_exec), nunca descargados por el navegador.
+
+# Apache 2.4+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+
+# Apache 2.2 (por si el hosting usa una versión vieja)
+<IfModule !mod_authz_core.c>
+    Order deny,allow
+    Deny from all
+</IfModule>

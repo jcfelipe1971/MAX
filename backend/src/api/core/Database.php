@@ -14,53 +14,62 @@ class Database
      * @param array  $params  Parámetros nombrados que espera esa acción
      * @return array          ['success'=>bool, 'data'=>[...] | 'affected'=>int | 'error'=>string]
      */
-    public static function call(string $action, array $params = []): array
+        public static function call(string $action, array $params = []): array
     {
-        // fbembed/linux tiene los .so para el hosting; fbembed/win tiene los
-        // .dll para tu PC. db_bridge.py elige la carpeta correcta solo según
-        // el sistema operativo en el que corre.
-        $fbDir  = SRC_PATH . 'fbembed' . (IS_WINDOWS ? DIRECTORY_SEPARATOR . 'win' : DIRECTORY_SEPARATOR . 'linux');
-        $bridge = escapeshellarg(SRC_PATH . 'db_bridge.py');
-        $act    = escapeshellarg($action);
-        $json   = escapeshellarg(json_encode($params, JSON_UNESCAPED_UNICODE));
+        $fbDir = SRC_PATH . 'fbembed' . (IS_WINDOWS ? DIRECTORY_SEPARATOR . 'win' : DIRECTORY_SEPARATOR . 'linux');
+        $bridge = SRC_PATH . 'db_bridge.py';
+        $json = json_encode($params, JSON_UNESCAPED_UNICODE);
 
+        // Configuramos las variables de entorno
+        putenv("FIREBIRD=$fbDir");
         if (IS_WINDOWS) {
-            // cmd.exe no entiende "VAR=valor comando"; hay que usar set && comando.
-            // Se antepone fbDir al PATH para que Windows encuentre fbclient.dll.
-            $cmd = sprintf(
-                'set "FIREBIRD=%s" && set "PATH=%s;%%PATH%%" && %s %s %s %s 2>&1',
-                $fbDir,
-                $fbDir,
-                PYTHON_BIN,
-                $bridge,
-                $act,
-                $json
-            );
+            putenv("PATH=$fbDir;" . getenv("PATH"));
         } else {
-            $cmd = sprintf(
-                'LD_LIBRARY_PATH=%s FIREBIRD=%s %s %s %s %s 2>&1',
-                escapeshellarg($fbDir),
-                escapeshellarg($fbDir),
-                PYTHON_BIN,
-                $bridge,
-                $act,
-                $json
-            );
+            putenv("LD_LIBRARY_PATH=$fbDir");
         }
 
-        $out = shell_exec($cmd);
-        $data = json_decode((string) $out, true);
+        // Construimos el comando
+        $cmd = sprintf('%s %s %s', PYTHON_BIN, escapeshellarg($bridge), escapeshellarg($action));
 
-        if ($data === null) {
-            // El puente no devolvió JSON válido: probablemente un error
-            // de PHP/Python no capturado (ruta incorrecta, permisos, etc.)
-            return [
-                'success' => false,
-                'error'   => 'Respuesta inválida del motor de datos',
-                'raw'     => $out,
-            ];
+        // Usamos proc_open para poder pasar el JSON por stdin
+        $descriptors = [
+            0 => ["pipe", "r"],  // stdin
+            1 => ["pipe", "w"],  // stdout
+            2 => ["pipe", "w"],  // stderr
+        ];
+
+        $process = proc_open($cmd, $descriptors, $pipes);
+
+        if (is_resource($process)) {
+            // Escribimos el JSON en stdin
+            fwrite($pipes[0], $json);
+            fclose($pipes[0]);
+
+            // Leemos la salida
+            $out = stream_get_contents($pipes[1]);
+            fclose($pipes[1]);
+
+            // Leemos errores si los hay
+            $err = stream_get_contents($pipes[2]);
+            fclose($pipes[2]);
+
+            proc_close($process);
+
+            $data = json_decode((string) $out, true);
+
+            if ($data === null) {
+                return [
+                    'success' => false,
+                    'error' => 'Respuesta inválida del motor de datos',
+                    'raw' => $out . ($err ? "\n\nErrores:\n" . $err : ''),
+                ];
+            }
+            return $data;
         }
 
-        return $data;
+        return [
+            'success' => false,
+            'error' => 'No se pudo iniciar el proceso Python',
+        ];
     }
 }

@@ -26,6 +26,12 @@ import sys
 import os
 import json
 
+# --- AÑADE ESTO PARA ARREGLAR LOS CARACTERES EXTRAÑOS EN WINDOWS ---
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+# -------------------------------------------------------------------
+
 # Se calcula sola a partir de la ubicación real de este archivo, así que
 # funciona igual en local (Windows) y en el hosting (Linux) sin editar nada.
 BASE = os.path.dirname(os.path.abspath(__file__)) + os.sep
@@ -113,7 +119,12 @@ def main():
         fail("Falta el nombre de la acción")
 
     action = sys.argv[1]
-    raw_params = sys.argv[2] if len(sys.argv) > 2 else "{}"
+   
+    # En Windows, leemos el JSON desde stdin para evitar problemas con cmd.exe
+    if sys.platform == 'win32':
+        raw_params = sys.stdin.read() if not sys.stdin.isatty() else "{}"
+    else:
+        raw_params = sys.argv[2] if len(sys.argv) > 2 else "{}"
 
     if action not in ACTIONS:
         fail(f"Acción no permitida: {action}")

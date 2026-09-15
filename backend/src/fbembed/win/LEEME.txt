@@ -1,0 +1,31 @@
+Esta carpeta debe quedar con la misma estructura que fbembed/linux/, pero
+con los binarios de Windows en vez de los .so de Linux.
+
+Tu servidor usa Firebird 5.0.4 embebido (se ve en fbembed/linux/libfbclient.so.5.0.4),
+así que usa la MISMA versión mayor en Windows para evitar problemas de
+compatibilidad del formato de base de datos (.fdb).
+
+Pasos:
+
+1. Descarga el ZIP "Firebird-5.0.x-...-x64.zip" (versión Windows, "embedded",
+   NO el instalador normal) desde:
+   https://firebirdsql.org/en/firebird-5-0/
+
+2. Del ZIP descargado, copia a esta carpeta (fbembed/win/) al menos:
+   - fbclient.dll
+   - ib_util.dll
+   - icudt*.dll, icuin*.dll, icuuc*.dll (las de ICU, vienen en el zip)
+   - firebird.conf
+   - firebird.msg
+   - la carpeta intl/ (si existe)
+   - la carpeta plugins/ (Engine13, si tu .fdb es formato ODS de FB 5)
+
+   Básicamente: el equivalente en Windows de lo que ya hay en fbembed/linux/.
+
+3. NO hace falta instalar Firebird "de verdad" en Windows ni registrar
+   ningún servicio: al ser la versión "embedded", el .dll se usa directo
+   desde esta carpeta, igual que hace el .so en el servidor Linux.
+
+Cuando esta carpeta tenga fbclient.dll, el proyecto funcionará en tu
+Windows local exactamente igual que en el hosting, sin tocar db_bridge.py
+ni conectar.py (ya detectan solos el sistema operativo).
